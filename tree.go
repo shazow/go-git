@@ -2,7 +2,7 @@ package git
 
 import (
 	"errors"
-	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -54,7 +54,7 @@ func (t *Tree) walk(dir string, walkFn TreeWalkFunc) error {
 		if te.Type == ObjectTree {
 			subTree, subErr = t.walkSubtree(te)
 		}
-		d := path.Join(dir, te.name)
+		d := filepath.Join(dir, te.name)
 		if err := walkFn(d, te, subErr); err != nil {
 			if err == SkipDir {
 				continue
@@ -77,7 +77,7 @@ func (t *Tree) SubTree(rpath string) (*Tree, error) {
 		return t, nil
 	}
 
-	paths := strings.Split(rpath, "/")
+	paths := strings.Split(filepath.ToSlash(rpath), "/")
 	var err error
 	var g = t
 	var p = t

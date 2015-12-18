@@ -13,17 +13,17 @@ var (
 )
 
 func IsBranchExist(repoPath, branchName string) bool {
-	branchPath := filepath.Join(repoPath, "refs/heads", branchName)
+	branchPath := filepath.Join(repoPath, "refs", "heads", branchName)
 	return isFile(branchPath)
 }
 
 func (repo *Repository) IsBranchExist(branchName string) bool {
-	branchPath := filepath.Join(repo.Path, "refs/heads", branchName)
+	branchPath := filepath.Join(repo.Path, "refs", "heads", branchName)
 	return isFile(branchPath)
 }
 
 func (repo *Repository) GetBranches() ([]string, error) {
-	return repo.readRefDir("refs/heads", "")
+	return repo.readRefDir(filepath.Join("refs", "heads"), "")
 }
 
 func (repo *Repository) CreateBranch(branchName, idStr string) error {
@@ -36,7 +36,7 @@ func (repo *Repository) createRef(head, branchName, idStr string) error {
 		return err
 	}
 
-	branchPath := filepath.Join(repo.Path, "refs/"+head, branchName)
+	branchPath := filepath.Join(repo.Path, "refs", head, branchName)
 	if isFile(branchPath) {
 		return ErrBranchExisted
 	}
@@ -92,7 +92,7 @@ func CreateBranch(repoPath, branchName, id string) error {
 }
 
 func CreateRef(head, repoPath, branchName, id string) error {
-	branchPath := filepath.Join(repoPath, "refs/"+head, branchName)
+	branchPath := filepath.Join(repoPath, "refs", head, branchName)
 	if isFile(branchPath) {
 		return ErrBranchExisted
 	}

@@ -7,17 +7,17 @@ import (
 )
 
 func (repo *Repository) IsTagExist(tagName string) bool {
-	tagPath := filepath.Join(repo.Path, "refs/tags", tagName)
+	tagPath := filepath.Join(repo.Path, "refs", "tags", tagName)
 	return isFile(tagPath)
 }
 
 func (repo *Repository) TagPath(tagName string) string {
-	return filepath.Join(repo.Path, "refs/tags", tagName)
+	return filepath.Join(repo.Path, "refs", "tags", tagName)
 }
 
 // GetTags returns all tags of given repository.
 func (repo *Repository) GetTags() ([]string, error) {
-	return repo.readRefDir("refs/tags", "")
+	return repo.readRefDir(filepath.Join("refs", "tags"), "")
 }
 
 func (repo *Repository) CreateTag(tagName, idStr string) error {

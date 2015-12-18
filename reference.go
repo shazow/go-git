@@ -3,7 +3,6 @@ package git
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
@@ -25,7 +24,7 @@ func UnpackRefs(repoPath string) error {
 		infos := strings.Split(ref, " ")
 		refPath := filepath.Join(repoPath, infos[1])
 		os.RemoveAll(refPath)
-		os.MkdirAll(path.Dir(refPath), os.ModePerm)
+		os.MkdirAll(filepath.Dir(refPath), os.ModePerm)
 		if err = ioutil.WriteFile(refPath, []byte(infos[0]), os.ModePerm); err != nil {
 			return err
 		}
