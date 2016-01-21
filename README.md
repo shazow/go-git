@@ -7,6 +7,11 @@ go-git
 
 Pure-Go implementation of Git as a library.
 
+**MOVED**: Future work on this library is maintained at [https://src.sourcegraph.com/go-git](https://src.sourcegraph.com/go-git).
+
+
+---
+
 
 ## Origins
 
