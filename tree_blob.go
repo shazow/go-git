@@ -3,6 +3,7 @@ package git
 import (
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -13,7 +14,7 @@ func (t *Tree) GetTreeEntryByPath(rpath string) (*TreeEntry, error) {
 		return nil, ErrNotExist
 	}
 
-	parts := strings.Split(path.Clean(rpath), "/")
+	parts := strings.Split(path.Clean(filepath.ToSlash(rpath)), "/")
 	var err error
 	tree := t
 	for i, name := range parts {
