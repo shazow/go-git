@@ -1,26 +1,31 @@
 package git
 
 import (
+	"bufio"
+	"compress/zlib"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strconv"
 )
 
 // ObjectNotFound error returned when a repo query is performed for an ID that does not exist.
-type ObjectNotFound sha1
+type ObjectNotFound ObjectID
 
 func (id ObjectNotFound) Error() string {
-	return fmt.Sprintf("object not found: %s", sha1(id))
+	return fmt.Sprintf("object not found: %s", ObjectID(id))
 }
 
-// Who am I?
 type ObjectType int
 
 const (
-	ObjectCommit ObjectType = 0x10
-	ObjectTree   ObjectType = 0x20
-	ObjectBlob   ObjectType = 0x30
-	ObjectTag    ObjectType = 0x40
+	ObjectCommit   ObjectType = 0x10
+	ObjectTree                = 0x20
+	ObjectBlob                = 0x30
+	ObjectTag                 = 0x40
+	objectOfsDelta            = 0x60
+	objectRefDelta            = 0x70
 )
 
 func (t ObjectType) String() string {
@@ -31,80 +36,98 @@ func (t ObjectType) String() string {
 		return "tree"
 	case ObjectBlob:
 		return "blob"
+	case ObjectTag:
+		return "tag"
 	default:
-		return ""
+		return "invalid"
 	}
 }
 
-// Given a SHA1, find the pack it is in and the offset, or return nil if not
-// found.
-func (repo *Repository) findObjectPack(id sha1) (*idxFile, uint64) {
-	for _, indexfile := range repo.indexfiles {
-		if offset, ok := indexfile.offsetValues[id]; ok {
-			return indexfile, offset
-		}
-	}
-	return nil, 0
+type Object struct {
+	Type ObjectType
+	Size uint64
+	Data []byte
 }
 
-func (repo *Repository) HaveObject(idStr string) (found, packed bool, err error) {
-	id, err := NewIdFromString(idStr)
-	if err != nil {
-		return
-	}
-
-	return repo.haveObject(id)
+func filepathFromSHA1(rootdir, id string) string {
+	return filepath.Join(rootdir, "objects", id[:2], id[2:])
 }
 
-func (repo *Repository) haveObject(id sha1) (found, packed bool, err error) {
-	sha1 := id.String()
-	_, err = os.Stat(filepathFromSHA1(repo.Path, sha1))
+func (repo *Repository) Object(id ObjectID) (*Object, error) {
+	return repo.object(id, false)
+}
+
+func (repo *Repository) object(id ObjectID, metaOnly bool) (*Object, error) {
+	o, err := readLooseObject(filepathFromSHA1(repo.Path, id.String()), metaOnly)
 	if err == nil {
-		found = true
-		return
-	} else if !os.IsNotExist(err) {
-		return
-	} else if os.IsNotExist(err) {
-		err = nil
+		return o, nil
+	}
+	if !os.IsNotExist(err) {
+		return nil, err
 	}
 
-	pack, _ := repo.findObjectPack(id)
-	if pack == nil {
-		return
+	for _, p := range repo.packs {
+		o, err := p.object(id, metaOnly)
+		if err != nil {
+			if _, ok := err.(ObjectNotFound); ok {
+				continue
+			}
+			return nil, err
+		}
+		return o, nil
 	}
-	found, packed = true, true
-	return
+
+	return nil, ObjectNotFound(id)
 }
 
-func (repo *Repository) getRawObject(id sha1, metaOnly bool) (ObjectType, int64, io.ReadCloser, error) {
-	sha1 := id.String()
-	found, packed, err := repo.haveObject(id)
-	switch {
-	case err != nil:
-		return 0, 0, nil, err
-
-	case !found:
-		return 0, 0, nil, ObjectNotFound(id)
-
-	case !packed:
-		return readObjectFile(filepathFromSHA1(repo.Path, sha1), metaOnly)
-	}
-
-	pack, offset := repo.findObjectPack(id)
-	return readObjectBytes(pack.packpath, &repo.indexfiles, offset, metaOnly)
-}
-
-// Get the type of an object.
-func (repo *Repository) objectType(id sha1) (ObjectType, error) {
-	objtype, _, _, err := repo.getRawObject(id, true)
+func readLooseObject(path string, metaOnly bool) (*Object, error) {
+	f, err := os.Open(path)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return objtype, nil
-}
+	defer f.Close()
 
-// Get (inflated) size of an object.
-func (repo *Repository) objectSize(id sha1) (int64, error) {
-	_, length, _, err := repo.getRawObject(id, true)
-	return length, err
+	zr, err := zlib.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	defer zr.Close()
+
+	br := bufio.NewReader(zr)
+
+	typStr, err := br.ReadString(' ')
+	if err != nil {
+		return nil, err
+	}
+	var typ ObjectType
+	switch typStr[:len(typStr)-1] {
+	case "blob":
+		typ = ObjectBlob
+	case "tree":
+		typ = ObjectTree
+	case "commit":
+		typ = ObjectCommit
+	case "tag":
+		typ = ObjectTag
+	}
+
+	sizeStr, err := br.ReadString(0)
+	if err != nil {
+		return nil, err
+	}
+	size, err := strconv.ParseUint(sizeStr[:len(sizeStr)-1], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	if metaOnly {
+		return &Object{typ, size, nil}, nil
+	}
+
+	data, err := ioutil.ReadAll(br)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Object{typ, size, data}, nil
 }

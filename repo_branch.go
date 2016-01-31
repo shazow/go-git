@@ -31,11 +31,6 @@ func (repo *Repository) CreateBranch(branchName, idStr string) error {
 }
 
 func (repo *Repository) createRef(head, branchName, idStr string) error {
-	id, err := NewIdFromString(idStr)
-	if err != nil {
-		return err
-	}
-
 	branchPath := filepath.Join(repo.Path, "refs/"+head, branchName)
 	if isFile(branchPath) {
 		return ErrBranchExisted
@@ -48,7 +43,7 @@ func (repo *Repository) createRef(head, branchName, idStr string) error {
 
 	defer f.Close()
 
-	_, err = io.WriteString(f, id.String())
+	_, err = io.WriteString(f, idStr)
 	return err
 }
 
